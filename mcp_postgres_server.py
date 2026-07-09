@@ -7,6 +7,7 @@ import re
 from typing import Any, Optional
 from mcp.server.fastmcp import FastMCP
 from dotenv import load_dotenv
+import pandas as pd
 
 # Configure logging to stderr
 logging.basicConfig(
@@ -21,6 +22,9 @@ load_dotenv()
 
 # Initialize FastMCP server
 mcp = FastMCP("PostgreSQL-Secure")
+
+# Global state for last query results
+LAST_QUERY_RESULTS = None
 
 def get_db_url():
     user = os.getenv("DB_USER")
@@ -194,10 +198,14 @@ async def execute_query(sql: str, user_id: Optional[str] = None) -> str:
                 await conn.execute(f"SET LOCAL app.current_user_id = '{sanitized_id}'")
                 logger.info(f"Set LOCAL app.current_user_id to: {sanitized_id}")
             
+            global LAST_QUERY_RESULTS
             rows = await conn.fetch(sql)
             logger.info(f"Query returned {len(rows)} rows")
             if not rows:
+                LAST_QUERY_RESULTS = []
                 return "Query executed successfully, but returned no rows."
+            
+            LAST_QUERY_RESULTS = [dict(row) for row in rows]
             
             headers = list(rows[0].keys())
             header_row = " | ".join(headers)
@@ -214,6 +222,37 @@ async def execute_query(sql: str, user_id: Optional[str] = None) -> str:
     finally:
         if conn:
             await conn.close()
+
+@mcp.tool()
+async def export_last_result_to_csv(filename: str = "export.csv") -> str:
+    """
+    Export the results of the most recently executed SQL query to a CSV file.
+    Use this when the user asks to export the data you just retrieved.
+    
+    Args:
+        filename: The output filename (e.g., 'report.csv'). Will be saved in the current directory.
+    """
+    global LAST_QUERY_RESULTS
+    
+    logger.info("Executing export_last_result_to_csv tool")
+    if LAST_QUERY_RESULTS is None:
+        return "Error: No query has been executed yet. Run a query first."
+    if not LAST_QUERY_RESULTS:
+        return "Error: The last executed query returned no data."
+        
+    try:
+        df = pd.DataFrame(LAST_QUERY_RESULTS)
+        
+        if not filename.endswith('.csv'):
+            filename += '.csv'
+            
+        filepath = os.path.abspath(filename)
+        df.to_csv(filepath, index=False)
+        
+        return f"Successfully exported {len(LAST_QUERY_RESULTS)} rows to CSV file at: {filepath}"
+    except Exception as e:
+        logger.error(f"Error in export_last_result_to_csv: {e}")
+        return f"Error exporting to CSV: {str(e)}"
 
 if __name__ == "__main__":
     logger.info("PostgreSQL Secure MCP server starting...")
