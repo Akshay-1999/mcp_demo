@@ -4,6 +4,7 @@ import asyncpg
 import logging
 import sys
 import re
+import urllib.parse
 from typing import Any, Optional
 from mcp.server.fastmcp import FastMCP
 from dotenv import load_dotenv
@@ -41,7 +42,10 @@ def get_db_url():
     clean_host = host.strip()
     logger.info(f"DEBUG: Extracted DB_HOST from .env is -> '{clean_host}'")
     
-    return f"postgresql://{user}:{password}@{clean_host}:{port}/{dbname}"
+    # URL-encode the password to safely handle special characters like '@'
+    password_encoded = urllib.parse.quote_plus(password) if password else ""
+    
+    return f"postgresql://{user}:{password_encoded}@{clean_host}:{port}/{dbname}"
 
 @mcp.tool()
 async def list_schemas() -> str:
