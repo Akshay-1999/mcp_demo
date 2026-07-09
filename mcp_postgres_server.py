@@ -7,6 +7,7 @@ import re
 from typing import Any, Optional
 from mcp.server.fastmcp import FastMCP
 from dotenv import load_dotenv
+from pathlib import Path
 import pandas as pd
 
 # Configure logging to stderr
@@ -17,8 +18,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mcp_postgres_server")
 
-# Load environment variables
-load_dotenv()
+# Load environment variables using absolute path to ensure it's found regardless of cwd
+env_path = Path(__file__).parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 # Initialize FastMCP server
 mcp = FastMCP("PostgreSQL-Secure")
@@ -27,12 +29,15 @@ mcp = FastMCP("PostgreSQL-Secure")
 LAST_QUERY_RESULTS = None
 
 def get_db_url():
+    host = os.getenv("DB_HOST")
+    if not host or host == "None":
+        raise ValueError(f"CRITICAL ERROR: DB_HOST is missing or invalid! Check if .env exists at {env_path}")
+        
     user = os.getenv("DB_USER")
     password = os.getenv("DB_PASSWORD")
-    host = os.getenv("DB_HOST")
-    port = os.getenv("DB_PORT")
+    port = os.getenv("DB_PORT", "5432")
     dbname = os.getenv("DB_NAME")
-    return f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
+    return f"postgresql://{user}:{password}@{host.strip()}:{port}/{dbname}"
 
 @mcp.tool()
 async def list_schemas() -> str:
