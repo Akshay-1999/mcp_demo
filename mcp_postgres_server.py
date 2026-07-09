@@ -37,7 +37,11 @@ def get_db_url():
     password = os.getenv("DB_PASSWORD")
     port = os.getenv("DB_PORT", "5432")
     dbname = os.getenv("DB_NAME")
-    return f"postgresql://{user}:{password}@{host.strip()}:{port}/{dbname}"
+    
+    clean_host = host.strip()
+    logger.info(f"DEBUG: Extracted DB_HOST from .env is -> '{clean_host}'")
+    
+    return f"postgresql://{user}:{password}@{clean_host}:{port}/{dbname}"
 
 @mcp.tool()
 async def list_schemas() -> str:
